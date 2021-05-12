@@ -1,0 +1,5 @@
+include ':javalib'
+include ':amazing'
+//,':rxretrofitlibrary'
+//,':ZBLibrary'
+rootProject.name = "AmazingLabForJava"
