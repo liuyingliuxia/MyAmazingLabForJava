@@ -1,4 +1,4 @@
-package com.lingong.amazinglab.inter;
+package com.lingong.amazinglab.request;
 
 import android.os.Build;
 
@@ -22,8 +22,8 @@ import rx.Observable;
 public interface HttpService {
 
 
-    @Headers("header_extend:Authorization")
-    @GET(MainActivity.BASE_DOWNLOAD_URL)
+    @Headers("Authorization")
+    @GET(MainActivity.REQUEST_DOWNLOAD_URL)
     Observable<HttpResult<Cert>> downloadCert();
 
 
