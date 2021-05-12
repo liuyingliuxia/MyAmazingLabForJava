@@ -1,30 +1,38 @@
 package com.lingong.amazinglab.ui;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.jakewharton.retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
 import com.lingong.amazinglab.R;
-import com.lingong.amazinglab.bean.Translation;
-import com.lingong.amazinglab.inter.GetRequest;
-import com.lingong.amazinglab.nochange.UrlConstString;
+import com.lingong.amazinglab.bean.Cert;
+import com.lingong.amazinglab.bean.HttpResult;
+import com.lingong.amazinglab.inter.HttpService;
+import com.lingong.amazinglab.utils.AuthUtil;
 import com.lingong.amazinglab.utils.LogUtil;
 
-import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
-import io.reactivex.rxjava3.annotations.NonNull;
-import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.core.Observer;
-import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.schedulers.Schedulers;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
+import java.util.concurrent.TimeUnit;
 
+import okhttp3.OkHttpClient;
+import retrofit2.Retrofit;
+import retrofit2.adapter.rxjava.RxJavaCallAdapterFactory;
+import retrofit2.converter.gson.GsonConverterFactory;
+import rx.Observable;
+import rx.Subscriber;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.schedulers.Schedulers;
+
+@RequiresApi(api = Build.VERSION_CODES.O)
 public class MainActivity extends AppCompatActivity {
     Button btnOne;
     private static final String TAG = "MainActivity";
+
+    public static final String BASE_DOWNLOAD_URL = "https://saas.zeasn.tv/auth-api/";
+    public static final String REQUEST_DOWNLOAD_URL = "api/v1/cert/download/demo";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,54 +43,57 @@ public class MainActivity extends AppCompatActivity {
         btnOne.setOnClickListener(clickListener);
     }
 
-    View.OnClickListener clickListener = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            switch (v.getId()) {
-                case R.id.btn1:
-                    getClick();
-                    break;
-            }
+    View.OnClickListener clickListener = v -> {
+        switch (v.getId()) {
+            case R.id.btn1:
+                getClick();
+                break;
         }
     };
 
     void getClick() {
-        getRequest();
+        getDownloadCert();
     }
 
-    private void getRequest() {
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(UrlConstString.BAIDU_API)
-                .addConverterFactory(GsonConverterFactory.create())
-                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                .build();
-        GetRequest request = retrofit.create(GetRequest.class);
+    private void getDownloadCert() {
+        try {
+            String authStr = AuthUtil.getAuth();
+            OkHttpClient.Builder builder = new OkHttpClient.Builder();
+            builder.connectTimeout(10, TimeUnit.SECONDS);
+            Retrofit retrofit = new Retrofit.Builder()
+                    .client(builder.build())
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .addCallAdapterFactory(RxJavaCallAdapterFactory.create())
+                    .baseUrl(BASE_DOWNLOAD_URL)
+                    .build();
 
-        Observable<Translation> observable = request.getCall();
+            HttpService apiService = retrofit.create(HttpService.class);
+            Observable<HttpResult<Cert>> observable = apiService.downloadCert();
+            observable.subscribeOn(Schedulers.io()).unsubscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(
+                            new Subscriber<HttpResult<Cert>>() {
 
-        observable.subscribeOn(Schedulers.io()) //io线程进行网络请求
-                .observeOn(AndroidSchedulers.mainThread()) //回到主线程 处理请求结果
-                .subscribe(new Observer<Translation>() {
+                                @Override
+                                public void onNext(HttpResult<Cert> certHttpResult) {
+                                    if (certHttpResult != null)
+                                        LogUtil.d("onNext = data= " + certHttpResult.getData().getData());
+                                }
 
-                    @Override
-                    public void onSubscribe(@NonNull Disposable d) {
-                        LogUtil.d("Begin onSubscribe 连接");
-                    }
+                                @Override
+                                public void onCompleted() {
+                                    LogUtil.d("onCompleted ... ");
+                                }
 
-                    @Override
-                    public void onNext(@NonNull Translation translation) {
-                        LogUtil.d(translation.toString());
-                    }
+                                @Override
+                                public void onError(Throwable t) {
+                                    LogUtil.e("onError = " + t.getMessage());
+                                }
 
-                    @Override
-                    public void onError(@NonNull Throwable e) {
-                        LogUtil.e("onError 。。。 ");
-                    }
+                            }
+                    );
 
-                    @Override
-                    public void onComplete() {
-                        LogUtil.e("onComplete 。。。 ");
-                    }
-                });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
